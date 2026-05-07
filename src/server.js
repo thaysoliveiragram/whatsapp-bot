@@ -6,7 +6,7 @@ app.use(express.json());
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
 const INSTANCE_NAME = process.env.INSTANCE_NAME || "meubot";
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 const RESPOSTAS_FIXAS = {
   oi: "👋 Olá! Eu sou um assistente virtual.\n\nDigite *#menu* para ver o que posso fazer por você!",
@@ -29,27 +29,31 @@ async function enviarMensagem(numero, texto) {
   }
 }
 
-async function perguntarClaude(mensagem) {
+async function perguntarGroq(mensagem) {
   try {
     const res = await axios.post(
-      "https://api.anthropic.com/v1/messages",
+      "https://api.groq.com/openai/v1/chat/completions",
       {
-        model: "claude-sonnet-4-20250514",
+        model: "llama3-8b-8192",
+        messages: [
+          {
+            role: "system",
+            content: "Você é um assistente virtual simpático respondendo via WhatsApp. Seja direto, use no máximo 3 parágrafos curtos. Responda sempre em português brasileiro."
+          },
+          { role: "user", content: mensagem }
+        ],
         max_tokens: 500,
-        system: "Você é um assistente virtual simpático respondendo via WhatsApp. Seja direto, use no máximo 3 parágrafos curtos. Responda sempre em português brasileiro.",
-        messages: [{ role: "user", content: mensagem }],
       },
       {
         headers: {
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
           "Content-Type": "application/json",
         },
       }
     );
-    return res.data.content[0].text;
+    return res.data.choices[0].message.content;
   } catch (err) {
-    console.error("Erro ao chamar Claude:", err.response?.data || err.message);
+    console.error("Erro ao chamar Groq:", err.response?.data || err.message);
     return "Desculpe, tive um problema ao processar sua mensagem. Tente novamente! 🙏";
   }
 }
@@ -70,7 +74,7 @@ app.post("/webhook", async (req, res) => {
       await enviarMensagem(numero, RESPOSTAS_FIXAS[textoNormalizado]);
       return;
     }
-    const resposta = await perguntarClaude(texto);
+    const resposta = await perguntarGroq(texto);
     await enviarMensagem(numero, resposta);
   } catch (err) {
     console.error("Erro no webhook:", err);
